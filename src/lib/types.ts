@@ -19,3 +19,10 @@ export type Strike = {
   teamName: string;
   count: number;
 };
+
+export type MiniGame = {
+  title: string;
+  itemsNeeded: string[];
+  setup: string;
+  rules: string;
+};

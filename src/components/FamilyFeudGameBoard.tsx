@@ -1,10 +1,18 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { useState } from 'react';
-import { FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
+import { useEffect, useState } from 'react';
+import {
+  FaCheckCircle,
+  FaClock,
+  FaTimesCircle,
+  FaWindowClose,
+} from 'react-icons/fa';
 
+import { miniGames, questions } from '@/lib/data';
 import { Answer, Question, Strike, Team } from '@/lib/types';
+
+import MiniGameCard from '@/components/MiniGameCard';
 
 const TeamScore = ({
   team,
@@ -108,53 +116,83 @@ const NextRoundButton = ({ onNextRound }: { onNextRound: () => void }) => (
   </button>
 );
 
-const ResetScoresButton = ({
-  onResetScores,
-}: {
-  onResetScores: () => void;
-}) => (
+const NewGameButton = ({ onRestartGame }: { onRestartGame: () => void }) => (
   <button
     className='mt-4 bg-red-500 text-white py-2 px-4 rounded-full text-sm font-bold shadow-lg hover:bg-red-400 transition-colors duration-200'
-    onClick={onResetScores}
+    onClick={onRestartGame}
   >
-    Reset Scores
+    Restart Game
   </button>
 );
 
+const initialMiniGameTitles = miniGames.map((game) => game.title);
+
+const initialMiniGameTitle =
+  initialMiniGameTitles[
+    Math.floor(Math.random() * initialMiniGameTitles.length)
+  ];
+
+const initialQuestion = questions[Math.floor(Math.random() * questions.length)];
+
 export default function GameBoard() {
   const [teams, setTeams] = useState<Team[]>([
-    { name: 'Team A', score: 0, isActive: true },
-    { name: 'Team B', score: 0, isActive: false },
+    { name: 'Team Boy', score: 0, isActive: true },
+    { name: 'Team Girl', score: 0, isActive: false },
   ]);
-  const [currentQuestion] = useState<Question>({
-    id: '1',
-    questionText: 'Name something people do to relax after a long day.',
-    answers: [
-      { text: 'Watch TV', points: 30 },
-      { text: 'Take a bath', points: 25 },
-      { text: 'Read a book', points: 20 },
-      { text: 'Listen to music', points: 15 },
-      { text: 'Exercise', points: 5 },
-      { text: 'Meditate', points: 5 },
-    ],
-  });
+  const [gameQuestions, setGameQuestions] = useState<Question[]>(questions);
+  const [currentQuestion, setQuestion] = useState<Question>(initialQuestion);
   const [revealedAnswers, setRevealedAnswers] = useState<boolean[]>(
     new Array(currentQuestion.answers.length).fill(false),
   );
   const [strikes, setStrikes] = useState<Strike[]>([]);
+  const [isCountdown, setIsCountdown] = useState(false); // For showing countdown overlay
+  const [isTimeUp, setIsTimeUp] = useState(false); // For showing "Times Up!"
+  const [secondsLeft, setSecondsLeft] = useState<number>(5); // For countdown timer
+  const [isMiniGame, setIsMiniGame] = useState(false); // Mini Game active state
+  const [currentMiniGameTitle, setCurrentWord] =
+    useState<string>(initialMiniGameTitle); // Current word in mini-game
+  const [miniGameTitles, setMiniGameTitles] = useState<string[]>(
+    initialMiniGameTitles,
+  ); // List of miniGameTitles for the mini-game
 
   // Get the sum of revealed answers
+  const [showAddMiniGamePointsButton, setShowAddMiniGamePointsButton] =
+    useState(false);
+
   const revealedPoints = currentQuestion.answers
     .filter((_, index) => revealedAnswers[index])
     .reduce((sum, answer) => sum + answer.points, 0);
 
+  const totalPoints = currentQuestion.answers.reduce(
+    (sum, answer) => sum + answer.points,
+    0,
+  );
+
   const handleNextRound = () => {
+    const newGameQuestions = gameQuestions.filter(
+      (question) => question.id !== currentQuestion.id,
+    );
+    setGameQuestions(newGameQuestions);
+    setQuestion(
+      newGameQuestions[Math.floor(Math.random() * newGameQuestions.length)],
+    );
     setRevealedAnswers(new Array(currentQuestion.answers.length).fill(false));
     setStrikes([]);
-    alert('Moving to next round!');
   };
 
-  const handleResetScores = () => {
+  const handleRestartGame = () => {
+    const initialQuestion =
+      questions[Math.floor(Math.random() * questions.length)];
+    // reset all state back to original state
+    setIsMiniGame(false);
+    setShowAddMiniGamePointsButton(false);
+    setCurrentWord(initialMiniGameTitle);
+    setMiniGameTitles(initialMiniGameTitles);
+    setIsCountdown(false);
+    setIsTimeUp(false);
+    setRevealedAnswers(new Array(initialQuestion.answers.length).fill(false));
+    setQuestion(initialQuestion);
+    setGameQuestions(questions);
     setTeams(teams.map((team) => ({ ...team, score: 0 })));
     setStrikes([]);
   };
@@ -180,16 +218,137 @@ export default function GameBoard() {
     setTeams(teams.map((team, i) => ({ ...team, isActive: i === index })));
   };
 
-  const handleReceivePoints = () => {
+  const handleReceivePoints = (manualPoints?: number) => {
     const activeTeamIndex = teams.findIndex((team) => team.isActive);
     const newTeams = [...teams];
-    newTeams[activeTeamIndex].score += revealedPoints;
+    newTeams[activeTeamIndex].score += manualPoints || revealedPoints;
     setTeams(newTeams);
+    if (manualPoints && isMiniGame) {
+      setMiniGameTitles(
+        miniGameTitles.filter((word) => word !== currentMiniGameTitle),
+      );
+      setIsMiniGame(false);
+      setShowAddMiniGamePointsButton(false);
+    }
   };
 
+  const startCountdown = () => {
+    setIsCountdown(true);
+    setSecondsLeft(5); // Set initial countdown time
+    const countdownInterval = setInterval(() => {
+      setSecondsLeft((prev) => {
+        if (prev === 1) {
+          clearInterval(countdownInterval);
+          setIsCountdown(false);
+          setIsTimeUp(true);
+          setTimeout(() => setIsTimeUp(false), 1000); // Show "Times Up!" for 1 second
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000); // Update every second
+  };
+
+  const startMiniGame = () => {
+    setIsMiniGame(true); // Activate mini-game
+    const shuffleInterval = setInterval(() => {
+      const randomWord =
+        miniGameTitles[Math.floor(Math.random() * miniGameTitles.length)];
+      setCurrentWord(randomWord); // Shuffle miniGameTitles
+    }, 100); // Shuffle every 100ms
+
+    setTimeout(() => {
+      clearInterval(shuffleInterval); // Stop shuffling after 6 seconds
+      setTimeout(() => {
+        setShowAddMiniGamePointsButton(true);
+      }, 1000); // Remove dimming after 1 second
+    }, 4000); // Shuffle for 6 seconds
+  };
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  if (!hasMounted) {
+    return null;
+  }
   return (
-    <div className='min-h-screen bg-blue-900 text-white p-8'>
-      <div className='grid grid-cols-3 gap-8 mb-3'>
+    <div className='min-h-screen bg-blue-900 text-white p-8 relative'>
+      {isCountdown && (
+        <div className='absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50'>
+          <h1 className='text-5xl text-white'>{secondsLeft}</h1>
+        </div>
+      )}
+
+      {isTimeUp && (
+        <div className='absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50'>
+          <h1 className='text-5xl text-white'>Times Up!</h1>
+        </div>
+      )}
+      <>
+        {isMiniGame && (
+          <div className='absolute inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 flex-col w-full p-4'>
+            <button
+              onClick={() => {
+                setIsMiniGame(false);
+                setShowAddMiniGamePointsButton(false);
+                setCurrentWord;
+              }}
+              className='absolute top-4 right-4'
+            >
+              <FaWindowClose className='text-2xl' />
+            </button>
+            <div className='text-center mb-6'>
+              <h1 className='text-6xl font-bold text-white mb-4'>
+                {currentMiniGameTitle}
+              </h1>
+              {showAddMiniGamePointsButton && (
+                <p className='text-xl text-gray-200'>
+                  Points:{' '}
+                  <span className='font-semibold text-green-400'>
+                    {Math.floor(totalPoints / 2)}
+                  </span>
+                </p>
+              )}
+            </div>
+            {showAddMiniGamePointsButton && (
+              <div className=' grid grid-cols-3 gap-4'>
+                <MiniGameCard miniGameTitle={currentMiniGameTitle} />
+                <TeamScore
+                  team={teams[0]}
+                  onSelect={() => handleTeamSelect(0)}
+                  onReceivePoints={() =>
+                    handleReceivePoints(Math.floor(totalPoints / 2))
+                  }
+                />
+
+                <TeamScore
+                  team={teams[1]}
+                  onSelect={() => handleTeamSelect(1)}
+                  onReceivePoints={() =>
+                    handleReceivePoints(Math.floor(totalPoints / 2))
+                  }
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </>
+      <CurrentQuestion question={currentQuestion} />
+      <div className='grid grid-cols-2 gap-4 mt-8'>
+        {currentQuestion.answers.map((answer, index) => (
+          <AnswerSlot
+            key={index}
+            answer={answer}
+            isRevealed={revealedAnswers[index]}
+            index={index}
+            onClickReveal={() => handleRevealAnswer(index)}
+          />
+        ))}
+      </div>
+
+      <div className='grid grid-cols-3 gap-8 mt-3'>
         <TeamScore
           team={teams[0]}
           onSelect={() => handleTeamSelect(0)}
@@ -207,6 +366,12 @@ export default function GameBoard() {
             >
               <FaCheckCircle className='text-2xl' />
             </button>
+            <button
+              className='bg-gray-500 text-white p-4 rounded-full text-lg font-bold shadow-lg hover:bg-gray-400 transition-colors duration-200'
+              onClick={startCountdown} // Start countdown on click
+            >
+              <FaClock className='text-2xl' />
+            </button>
 
             <button
               className='bg-red-500 text-white p-4 rounded-full text-lg font-bold shadow-lg hover:bg-red-400 transition-colors duration-200'
@@ -223,28 +388,19 @@ export default function GameBoard() {
           onReceivePoints={handleReceivePoints}
         />
       </div>
-
-      <CurrentQuestion question={currentQuestion} />
-
-      <div className='grid grid-cols-2 gap-4 mt-8'>
-        {currentQuestion.answers.map((answer, index) => (
-          <AnswerSlot
-            key={index}
-            answer={answer}
-            isRevealed={revealedAnswers[index]}
-            index={index}
-            onClickReveal={() => handleRevealAnswer(index)}
-          />
-        ))}
-      </div>
-
-      <div></div>
-
       <div className='absolute bottom-0  right-0'>
         <NextRoundButton onNextRound={handleNextRound} />
       </div>
+      <div className=' absolute top-0  left-0'>
+        <NewGameButton onRestartGame={handleRestartGame} />
+      </div>
       <div className=' absolute top-0  right-0'>
-        <ResetScoresButton onResetScores={handleResetScores} />
+        <button
+          className='bg-blue-500 text-white p-4 rounded-full text-lg font-bold shadow-lg hover:bg-blue-400 transition-colors duration-200'
+          onClick={startMiniGame} // Start Mini Game on click
+        >
+          Mini Game
+        </button>
       </div>
     </div>
   );
