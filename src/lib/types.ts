@@ -26,3 +26,15 @@ export type MiniGame = {
   setup: string;
   rules: string;
 };
+
+export type GenderRevealGame = {
+  currentMiniGameTitle: string;
+  miniGameTitles: string[];
+  isCountdown: boolean;
+  isMiniGame: boolean;
+  isTimeUp: boolean;
+  showAddMiniGamePointsButton: boolean;
+  revealedAnswers: boolean[];
+  currentQuestion: Question;
+  strikes: Strike[];
+};

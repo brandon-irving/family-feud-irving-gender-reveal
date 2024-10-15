@@ -1,6 +1,8 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import useGenderRevealGame from 'hooks/useGenderRevealGame';
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   FaCheckCircle,
@@ -9,7 +11,7 @@ import {
   FaWindowClose,
 } from 'react-icons/fa';
 
-import { miniGames, questions } from '@/lib/data';
+import { questions } from '@/lib/data';
 import { Answer, Question, Strike, Team } from '@/lib/types';
 
 import MiniGameCard from '@/components/MiniGameCard';
@@ -53,43 +55,55 @@ const AnswerSlot = ({
   isRevealed,
   index,
   onClickReveal,
+  isHost,
 }: {
   answer: Answer;
   isRevealed: boolean;
   index: number;
   onClickReveal: () => void;
+  isHost?: boolean;
 }) => (
-  <motion.div
-    className='bg-blue-500 rounded-lg shadow-lg overflow-hidden relative h-24 cursor-pointer'
-    initial={false}
-    animate={{ rotateY: isRevealed ? 0 : 180 }}
-    transition={{ duration: 0.6 }}
-    onClick={onClickReveal}
-    style={{ perspective: '1000px' }} // Add perspective for 3D effect
-  >
-    {/* Hidden State (Shown initially) */}
-    <div
-      className={`absolute inset-0 flex justify-center items-center p-4 ${
-        isRevealed ? 'hidden' : 'flex'
-      }`}
-      style={{ transform: 'scale(-1, 1)', backfaceVisibility: 'hidden' }} // Prevent reversed number issue
+  <>
+    <motion.div
+      className='bg-blue-500 rounded-lg shadow-lg overflow-hidden relative h-24 cursor-pointer'
+      initial={false}
+      animate={{ rotateY: isRevealed ? 0 : 180 }}
+      transition={{ duration: 0.6 }}
+      onClick={onClickReveal}
+      style={{ perspective: '1000px' }} // Add perspective for 3D effect
     >
-      <span className='text-white text-2xl'>{index + 1}</span>
-    </div>
+      {/* Hidden State (Shown initially) */}
+      <div
+        className={`absolute inset-0 flex justify-center items-center p-4 ${
+          isRevealed ? 'hidden' : 'flex'
+        }`}
+        style={{ transform: 'scale(-1, 1)', backfaceVisibility: 'hidden' }}
+      >
+        <span className='text-white text-2xl'>{index + 1}</span>
+      </div>
 
-    {/* Revealed State */}
-    <div
-      className={`absolute inset-0 flex justify-between items-center p-4 ${
-        isRevealed ? 'flex' : 'hidden'
-      }`}
-      style={{ backfaceVisibility: 'hidden' }} // Ensure the revealed side shows correctly
-    >
-      <span className='text-white text-2xl'>{answer.text}</span>
-      <span className='text-yellow-400 text-2xl font-bold'>
-        {answer.points}
-      </span>
-    </div>
-  </motion.div>
+      {/* Revealed State */}
+      <div
+        className={`absolute inset-0 flex justify-between items-center p-4 ${
+          isRevealed ? 'flex' : 'hidden'
+        }`}
+        style={{ backfaceVisibility: 'hidden' }} // Ensure the revealed side shows correctly
+      >
+        <span className='text-white text-2xl'>{answer.text}</span>
+        <span className='text-yellow-400 text-2xl font-bold'>
+          {answer.points}
+        </span>
+      </div>
+      {isHost && !isRevealed && (
+        <p
+          style={{ transform: 'scale(-1, 1)' }}
+          className='text-center text-lg font-bold mt-2 text-yellow-400'
+        >
+          ({answer.text})
+        </p>
+      )}
+    </motion.div>
+  </>
 );
 
 const StrikeCounter = ({ strikes }: { strikes: Strike[] }) => (
@@ -125,48 +139,93 @@ const NewGameButton = ({ onRestartGame }: { onRestartGame: () => void }) => (
   </button>
 );
 
-const initialMiniGameTitles = miniGames.map((game) => game.title);
-
-const initialMiniGameTitle =
-  initialMiniGameTitles[
-    Math.floor(Math.random() * initialMiniGameTitles.length)
-  ];
-
-const initialQuestion = questions[Math.floor(Math.random() * questions.length)];
-
 export default function GameBoard() {
-  const [teams, setTeams] = useState<Team[]>([
-    { name: 'Team Boy', score: 0, isActive: true },
-    { name: 'Team Girl', score: 0, isActive: false },
-  ]);
+  const {
+    initialGenderRevealGame,
+    genderRevealGame,
+    updateGenderRevealGame,
+    initialMiniGameTitle,
+    initialMiniGameTitles,
+    initializeGame,
+  } = useGenderRevealGame();
+
   const [gameQuestions, setGameQuestions] = useState<Question[]>(questions);
-  const [currentQuestion, setQuestion] = useState<Question>(initialQuestion);
-  const [revealedAnswers, setRevealedAnswers] = useState<boolean[]>(
-    new Array(currentQuestion.answers.length).fill(false),
-  );
-  const [strikes, setStrikes] = useState<Strike[]>([]);
-  const [isCountdown, setIsCountdown] = useState(false); // For showing countdown overlay
-  const [isTimeUp, setIsTimeUp] = useState(false); // For showing "Times Up!"
-  const [secondsLeft, setSecondsLeft] = useState<number>(5); // For countdown timer
-  const [isMiniGame, setIsMiniGame] = useState(false); // Mini Game active state
-  const [currentMiniGameTitle, setCurrentWord] =
-    useState<string>(initialMiniGameTitle); // Current word in mini-game
+  const [secondsLeft, setSecondsLeft] = useState<number>(5);
   const [miniGameTitles, setMiniGameTitles] = useState<string[]>(
     initialMiniGameTitles,
-  ); // List of miniGameTitles for the mini-game
-
-  // Get the sum of revealed answers
-  const [showAddMiniGamePointsButton, setShowAddMiniGamePointsButton] =
-    useState(false);
-
-  const revealedPoints = currentQuestion.answers
-    .filter((_, index) => revealedAnswers[index])
-    .reduce((sum, answer) => sum + answer.points, 0);
-
-  const totalPoints = currentQuestion.answers.reduce(
-    (sum, answer) => sum + answer.points,
-    0,
   );
+  const params = useSearchParams();
+  const isHost = params.get('isHost');
+  async function setTeams(teams: Team[]) {
+    if (!genderRevealGame) return;
+    await updateGenderRevealGame({
+      _id: genderRevealGame._id,
+      teams,
+    });
+  }
+  async function setQuestion(currentQuestion: Question) {
+    if (!genderRevealGame) return;
+    await updateGenderRevealGame({
+      _id: genderRevealGame._id,
+      currentQuestion,
+    });
+  }
+
+  async function setRevealedAnswers(revealedAnswers: boolean[]) {
+    if (!genderRevealGame) return;
+    await updateGenderRevealGame({
+      _id: genderRevealGame._id,
+      revealedAnswers,
+    });
+  }
+
+  async function setStrikes(strikes: Strike[]) {
+    if (!genderRevealGame) return;
+    await updateGenderRevealGame({
+      _id: genderRevealGame._id,
+      strikes,
+    });
+  }
+
+  async function setIsCountdown(isCountdown: boolean) {
+    if (!genderRevealGame) return;
+    await updateGenderRevealGame({
+      _id: genderRevealGame._id,
+      isCountdown,
+    });
+  }
+  async function setIsTimeUp(isTimeUp: boolean) {
+    if (!genderRevealGame) return;
+    await updateGenderRevealGame({
+      _id: genderRevealGame._id,
+      isTimeUp,
+    });
+  }
+  async function setIsMiniGame(isMiniGame: boolean) {
+    if (!genderRevealGame) return;
+    await updateGenderRevealGame({
+      _id: genderRevealGame._id,
+      isMiniGame,
+    });
+  }
+
+  async function setCurrentMiniGameTitle(currentMiniGameTitle: string) {
+    if (!genderRevealGame) return;
+    await updateGenderRevealGame({
+      _id: genderRevealGame._id,
+      currentMiniGameTitle,
+    });
+  }
+
+  async function setShowAddMiniGamePointsButton(
+    showAddMiniGamePointsButton: boolean,
+  ) {
+    if (!genderRevealGame) return;
+    await updateGenderRevealGame({
+      _id: genderRevealGame._id,
+      showAddMiniGamePointsButton,
+    });
+  }
 
   const handleNextRound = () => {
     const newGameQuestions = gameQuestions.filter(
@@ -186,7 +245,7 @@ export default function GameBoard() {
     // reset all state back to original state
     setIsMiniGame(false);
     setShowAddMiniGamePointsButton(false);
-    setCurrentWord(initialMiniGameTitle);
+    setCurrentMiniGameTitle(initialMiniGameTitle);
     setMiniGameTitles(initialMiniGameTitles);
     setIsCountdown(false);
     setIsTimeUp(false);
@@ -209,7 +268,10 @@ export default function GameBoard() {
     if (strikes.length < 3) {
       setStrikes([
         ...strikes,
-        { teamName: 'Current Team', count: strikes.length + 1 },
+        {
+          teamName: teams.find((team) => team.isActive)?.name || '',
+          count: strikes.length + 1,
+        },
       ]);
     }
   };
@@ -221,7 +283,9 @@ export default function GameBoard() {
   const handleReceivePoints = (manualPoints?: number) => {
     const activeTeamIndex = teams.findIndex((team) => team.isActive);
     const newTeams = [...teams];
-    newTeams[activeTeamIndex].score += manualPoints || revealedPoints;
+    const score = Number(newTeams[activeTeamIndex].score);
+    const _revealedPoints = manualPoints || revealedPoints;
+    newTeams[activeTeamIndex].score = score + _revealedPoints;
     setTeams(newTeams);
     if (manualPoints && isMiniGame) {
       setMiniGameTitles(
@@ -231,9 +295,10 @@ export default function GameBoard() {
       setShowAddMiniGamePointsButton(false);
     }
   };
-
+  async function initializeCountdown() {
+    await setIsCountdown(true);
+  }
   const startCountdown = () => {
-    setIsCountdown(true);
     setSecondsLeft(5); // Set initial countdown time
     const countdownInterval = setInterval(() => {
       setSecondsLeft((prev) => {
@@ -254,7 +319,7 @@ export default function GameBoard() {
     const shuffleInterval = setInterval(() => {
       const randomWord =
         miniGameTitles[Math.floor(Math.random() * miniGameTitles.length)];
-      setCurrentWord(randomWord); // Shuffle miniGameTitles
+      setCurrentMiniGameTitle(randomWord); // Shuffle miniGameTitles
     }, 100); // Shuffle every 100ms
 
     setTimeout(() => {
@@ -264,15 +329,49 @@ export default function GameBoard() {
       }, 1000); // Remove dimming after 1 second
     }, 4000); // Shuffle for 6 seconds
   };
+
   const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    if (genderRevealGame?.isCountdown) {
+      startCountdown();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [genderRevealGame?.isCountdown]);
 
   useEffect(() => {
     setHasMounted(true);
   }, []);
 
-  if (!hasMounted) {
+  useEffect(() => {
+    if (genderRevealGame === null) {
+      initializeGame();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [genderRevealGame]);
+
+  if (!hasMounted || !genderRevealGame) {
     return null;
   }
+  const {
+    currentQuestion,
+    revealedAnswers,
+    currentMiniGameTitle,
+    isCountdown,
+    isTimeUp,
+    isMiniGame,
+    showAddMiniGamePointsButton,
+    strikes,
+    teams = initialGenderRevealGame.teams,
+  } = genderRevealGame;
+  const revealedPoints = currentQuestion.answers
+    .filter((_, index) => revealedAnswers[index])
+    .reduce((sum, answer) => sum + answer.points, 0);
+
+  const totalPoints = currentQuestion.answers.reduce(
+    (sum, answer) => sum + answer.points,
+    0,
+  );
   return (
     <div className='min-h-screen bg-blue-900 text-white p-8 relative'>
       {isCountdown && (
@@ -293,7 +392,7 @@ export default function GameBoard() {
               onClick={() => {
                 setIsMiniGame(false);
                 setShowAddMiniGamePointsButton(false);
-                setCurrentWord;
+                setCurrentMiniGameTitle;
               }}
               className='absolute top-4 right-4'
             >
@@ -340,6 +439,7 @@ export default function GameBoard() {
         {currentQuestion.answers.map((answer, index) => (
           <AnswerSlot
             key={index}
+            isHost={isHost === 'true'}
             answer={answer}
             isRevealed={revealedAnswers[index]}
             index={index}
@@ -352,7 +452,7 @@ export default function GameBoard() {
         <TeamScore
           team={teams[0]}
           onSelect={() => handleTeamSelect(0)}
-          onReceivePoints={handleReceivePoints}
+          onReceivePoints={() => handleReceivePoints()}
         />
         <div className=' flex justify-between flex-col'>
           <div className='text-center text-3xl'>
@@ -368,7 +468,7 @@ export default function GameBoard() {
             </button>
             <button
               className='bg-gray-500 text-white p-4 rounded-full text-lg font-bold shadow-lg hover:bg-gray-400 transition-colors duration-200'
-              onClick={startCountdown} // Start countdown on click
+              onClick={initializeCountdown} // Start countdown on click
             >
               <FaClock className='text-2xl' />
             </button>
@@ -385,7 +485,7 @@ export default function GameBoard() {
         <TeamScore
           team={teams[1]}
           onSelect={() => handleTeamSelect(1)}
-          onReceivePoints={handleReceivePoints}
+          onReceivePoints={() => handleReceivePoints()}
         />
       </div>
       <div className='absolute bottom-0  right-0'>
