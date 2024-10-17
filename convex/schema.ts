@@ -7,7 +7,14 @@ export default defineSchema({
     event: v.union(v.literal('whoBuzzedFirst'), v.literal('sound')),
     teamName: v.optional(v.string()),
     soundName: v.optional(
-      v.union(v.literal('applause'), v.literal('themeSong')),
+      v.union(
+        v.literal('applause'),
+        v.literal('themeSong'),
+        v.literal('correct'),
+        v.literal('incorrect'),
+        v.literal('buzzedIn'),
+        v.literal('faceOff'),
+      ),
     ),
   }),
   buzzer: defineTable({

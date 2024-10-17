@@ -11,7 +11,7 @@ import {
 } from 'react-icons/fa';
 
 import { questions } from '@/lib/data';
-import { Question, Strike, Team } from '@/lib/types';
+import { Question, SoundNames, Strike, Team } from '@/lib/types';
 
 import { AnswerSlot } from '@/components/FamilyFeudGameBoard/AnswerSlot';
 import { CurrentQuestion } from '@/components/FamilyFeudGameBoard/CurrentQuestion';
@@ -53,7 +53,8 @@ export default function FamilyFeudGameBoard() {
   const params = useSearchParams();
   const isHost = params.get('isHost');
 
-  const { appEvents, removeAppEvent } = useHandleAppEvents({
+  const { appEvents, removeAppEvent, addSoundEvent } = useHandleAppEvents({
+    isHost: isHost === 'true',
     onWhoBuzzedFirst: (teamName: string) => {
       buzzedInFx?.play();
       if (teamName || !genderRevealGame?.teams) return;
@@ -69,11 +70,29 @@ export default function FamilyFeudGameBoard() {
         );
       }
     },
-    onSound: (soundName: 'applause' | 'themeSong') => {
-      if (soundName === 'applause') {
-        applauseFx?.play();
-      } else if (soundName === 'themeSong') {
-        themeSongFx?.play();
+    onSound: (soundName: SoundNames) => {
+      switch (soundName) {
+        case 'applause':
+          applauseFx?.play();
+          break;
+        case 'themeSong':
+          themeSongFx?.play();
+          break;
+        case 'buzzedIn':
+          buzzedInFx?.play();
+          break;
+        case 'correct':
+          correctFx?.play();
+          break;
+        case 'incorrect':
+          incorrectFx?.play();
+          break;
+        case 'faceOff':
+          faceOffFx?.play();
+          break;
+
+        default:
+          break;
       }
     },
   });
@@ -190,7 +209,11 @@ export default function FamilyFeudGameBoard() {
 
   const handleRevealAnswer = (index: number) => {
     if (!revealedAnswers[index]) {
-      correctFx?.play();
+      if (!isHost) {
+        correctFx?.play();
+      } else {
+        addSoundEvent('correct');
+      }
       const newRevealedAnswers = [...revealedAnswers];
       newRevealedAnswers[index] = true;
       setRevealedAnswers(newRevealedAnswers);
@@ -412,27 +435,31 @@ export default function FamilyFeudGameBoard() {
             Total Revealed Points:{' '}
             <span className='font-bold'>{revealedPoints}</span>
           </div>
-          <div className='flex justify-between mt-8 space-x-4'>
-            <button
-              className='bg-green-500 text-white p-4 rounded-full text-lg font-bold shadow-lg hover:bg-green-400 transition-colors duration-200'
-              onClick={() => handleRevealAnswer(revealedAnswers.indexOf(false))}
-            >
-              <FaCheckCircle className='text-2xl' />
-            </button>
-            <button
-              className='bg-gray-500 text-white p-4 rounded-full text-lg font-bold shadow-lg hover:bg-gray-400 transition-colors duration-200'
-              onClick={initializeCountdown}
-            >
-              <FaClock className='text-2xl' />
-            </button>
+          {isHost === 'true' && (
+            <div className='flex justify-between mt-8 space-x-4'>
+              <button
+                className='bg-green-500 text-white p-4 rounded-full text-lg font-bold shadow-lg hover:bg-green-400 transition-colors duration-200'
+                onClick={() =>
+                  handleRevealAnswer(revealedAnswers.indexOf(false))
+                }
+              >
+                <FaCheckCircle className='text-2xl' />
+              </button>
+              <button
+                className='bg-gray-500 text-white p-4 rounded-full text-lg font-bold shadow-lg hover:bg-gray-400 transition-colors duration-200'
+                onClick={initializeCountdown}
+              >
+                <FaClock className='text-2xl' />
+              </button>
 
-            <button
-              className='bg-red-500 text-white p-4 rounded-full text-lg font-bold shadow-lg hover:bg-red-400 transition-colors duration-200'
-              onClick={handleAddStrike}
-            >
-              <FaTimesCircle className='text-2xl' />
-            </button>
-          </div>
+              <button
+                className='bg-red-500 text-white p-4 rounded-full text-lg font-bold shadow-lg hover:bg-red-400 transition-colors duration-200'
+                onClick={handleAddStrike}
+              >
+                <FaTimesCircle className='text-2xl' />
+              </button>
+            </div>
+          )}
           <StrikeCounter strikes={strikes} onStrikeClick={handleStrikeClick} />
         </div>
         <TeamScore
@@ -442,20 +469,24 @@ export default function FamilyFeudGameBoard() {
           onReceivePoints={() => handleReceivePoints()}
         />
       </div>
-      <div className='absolute bottom-0 right-0'>
-        <NextRoundButton onNextRound={handleNextRound} />
-      </div>
-      <div className='absolute top-0 left-0'>
-        <NewGameButton onRestartGame={handleRestartGame} />
-      </div>
-      <div className='absolute top-0 right-0'>
-        <button
-          className='bg-blue-500 text-white p-4 rounded-full text-lg font-bold shadow-lg hover:bg-blue-400 transition-colors duration-200'
-          onClick={startMiniGame}
-        >
-          Mini Game
-        </button>
-      </div>
+      {isHost === 'true' && (
+        <>
+          <div className='absolute bottom-0 right-0'>
+            <NextRoundButton onNextRound={handleNextRound} />
+          </div>
+          <div className='absolute top-0 left-0'>
+            <NewGameButton onRestartGame={handleRestartGame} />
+          </div>
+          <div className='absolute top-0 right-0'>
+            <button
+              className='bg-blue-500 text-white p-4 rounded-full text-lg font-bold shadow-lg hover:bg-blue-400 transition-colors duration-200'
+              onClick={startMiniGame}
+            >
+              Mini Game
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

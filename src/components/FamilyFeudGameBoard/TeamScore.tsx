@@ -1,5 +1,6 @@
 import { Team } from '@/lib/types';
 import useHandleAppEvents from 'hooks/useHandleAppEvents';
+import { useSearchParams } from 'next/navigation';
 
 export const TeamScore = ({
   isBuzzedFirst,
@@ -12,6 +13,8 @@ export const TeamScore = ({
   onSelect: () => void;
   onReceivePoints: () => void;
 }) => {
+  const params = useSearchParams();
+  const isHost = params.get('isHost');
   const { removeAppEvent } = useHandleAppEvents({});
 
   return (
@@ -31,14 +34,16 @@ export const TeamScore = ({
       )}
       <h2 className='text-3xl font-bold text-yellow-400'>{team.name}</h2>
       <p className='text-4xl text-white'>{team.score} points</p>
-      <button
-        disabled={!team.isActive}
-        style={{ opacity: team.isActive ? 1 : 0.5 }}
-        className='mt-2 bg-green-500 text-white py-2 px-4 rounded-full text-lg font-bold shadow-lg hover:bg-green-400'
-        onClick={onReceivePoints}
-      >
-        Receive Points
-      </button>
+      {isHost === 'true' && (
+        <button
+          disabled={!team.isActive}
+          style={{ opacity: team.isActive ? 1 : 0.5 }}
+          className='mt-2 bg-green-500 text-white py-2 px-4 rounded-full text-lg font-bold shadow-lg hover:bg-green-400'
+          onClick={onReceivePoints}
+        >
+          Receive Points
+        </button>
+      )}
     </div>
   );
 };

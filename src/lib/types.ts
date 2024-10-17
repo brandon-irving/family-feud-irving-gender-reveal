@@ -38,3 +38,11 @@ export type GenderRevealGame = {
   currentQuestion: Question;
   strikes: Strike[];
 };
+
+export type SoundNames =
+  | 'applause'
+  | 'themeSong'
+  | 'correct'
+  | 'incorrect'
+  | 'buzzedIn'
+  | 'faceOff';
