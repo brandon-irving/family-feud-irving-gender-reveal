@@ -15,6 +15,8 @@ import type {
   FilterApi,
   FunctionReference,
 } from 'convex/server';
+import type * as appEvents from '../appEvents.js';
+import type * as buzzer from '../buzzer.js';
 import type * as gameState from '../gameState.js';
 
 /**
@@ -26,6 +28,8 @@ import type * as gameState from '../gameState.js';
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  appEvents: typeof appEvents;
+  buzzer: typeof buzzer;
   gameState: typeof gameState;
 }>;
 export declare const api: FilterApi<

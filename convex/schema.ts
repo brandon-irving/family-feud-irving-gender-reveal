@@ -3,6 +3,16 @@ import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 export default defineSchema({
+  appEvents: defineTable({
+    event: v.union(v.literal('whoBuzzedFirst'), v.literal('sound')),
+    teamName: v.optional(v.string()),
+    soundName: v.optional(
+      v.union(v.literal('applause'), v.literal('themeSong')),
+    ),
+  }),
+  buzzer: defineTable({
+    teamName: v.string(),
+  }),
   genderRevealGame: defineTable({
     currentMiniGameTitle: v.string(),
     miniGameTitles: v.array(v.string()),

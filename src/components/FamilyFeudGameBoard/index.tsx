@@ -1,6 +1,5 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import useGenderRevealGame from 'hooks/useGenderRevealGame';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -12,134 +11,31 @@ import {
 } from 'react-icons/fa';
 
 import { questions } from '@/lib/data';
-import { Answer, Question, Strike, Team } from '@/lib/types';
+import { Question, Strike, Team } from '@/lib/types';
 
+import { AnswerSlot } from '@/components/FamilyFeudGameBoard/AnswerSlot';
+import { CurrentQuestion } from '@/components/FamilyFeudGameBoard/CurrentQuestion';
+import { StrikeCounter } from '@/components/FamilyFeudGameBoard/StrikeCounter';
+
+import { NewGameButton } from '@/components/FamilyFeudGameBoard/NewGameButton';
+import { NextRoundButton } from '@/components/FamilyFeudGameBoard/NextRoundButton';
+import { TeamScore } from '@/components/FamilyFeudGameBoard/TeamScore';
 import MiniGameCard from '@/components/MiniGameCard';
+import useHandleAppEvents from 'hooks/useHandleAppEvents';
+import useSoundBoard from 'hooks/useSoundBoard';
 
-const TeamScore = ({
-  team,
-  onSelect,
-  onReceivePoints,
-}: {
-  team: Team;
-  onSelect: () => void;
-  onReceivePoints: () => void;
-}) => (
-  <div
-    className={`flex flex-col items-center bg-blue-700 p-6 rounded-lg shadow-lg cursor-pointer ${
-      team.isActive ? 'border-4 border-yellow-400' : ''
-    }`}
-    onClick={onSelect}
-  >
-    <h2 className='text-3xl font-bold text-yellow-400'>{team.name}</h2>
-    <p className='text-4xl text-white'>{team.score} points</p>
-    <button
-      disabled={!team.isActive}
-      style={{ opacity: team.isActive ? 1 : 0.5 }}
-      className='mt-2 bg-green-500 text-white py-2 px-4 rounded-full text-lg font-bold shadow-lg hover:bg-green-400'
-      onClick={onReceivePoints}
-    >
-      Receive Points
-    </button>
-  </div>
-);
+export default function FamilyFeudGameBoard() {
+  const [loading, setLoading] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
+  const {
+    correctFx,
+    incorrectFx,
+    faceOffFx,
+    applauseFx,
+    themeSongFx,
+    buzzedInFx,
+  } = useSoundBoard();
 
-const CurrentQuestion = ({ question }: { question: Question }) => (
-  <div className='text-4xl text-center font-bold py-6 px-6 bg-blue-600 text-white rounded-lg shadow-lg'>
-    {question.questionText}
-  </div>
-);
-
-const AnswerSlot = ({
-  answer,
-  isRevealed,
-  index,
-  onClickReveal,
-  isHost,
-}: {
-  answer: Answer;
-  isRevealed: boolean;
-  index: number;
-  onClickReveal: () => void;
-  isHost?: boolean;
-}) => (
-  <>
-    <motion.div
-      className='bg-blue-500 rounded-lg shadow-lg overflow-hidden relative h-24 cursor-pointer'
-      initial={false}
-      animate={{ rotateY: isRevealed ? 0 : 180 }}
-      transition={{ duration: 0.6 }}
-      onClick={onClickReveal}
-      style={{ perspective: '1000px' }} // Add perspective for 3D effect
-    >
-      {/* Hidden State (Shown initially) */}
-      <div
-        className={`absolute inset-0 flex justify-center items-center p-4 ${
-          isRevealed ? 'hidden' : 'flex'
-        }`}
-        style={{ transform: 'scale(-1, 1)', backfaceVisibility: 'hidden' }}
-      >
-        <span className='text-white text-2xl'>{index + 1}</span>
-      </div>
-
-      {/* Revealed State */}
-      <div
-        className={`absolute inset-0 flex justify-between items-center p-4 ${
-          isRevealed ? 'flex' : 'hidden'
-        }`}
-        style={{ backfaceVisibility: 'hidden' }} // Ensure the revealed side shows correctly
-      >
-        <span className='text-white text-2xl'>{answer.text}</span>
-        <span className='text-yellow-400 text-2xl font-bold'>
-          {answer.points}
-        </span>
-      </div>
-      {isHost && !isRevealed && (
-        <p
-          style={{ transform: 'scale(-1, 1)' }}
-          className='text-center text-lg font-bold mt-2 text-yellow-400'
-        >
-          ({answer.text})
-        </p>
-      )}
-    </motion.div>
-  </>
-);
-
-const StrikeCounter = ({ strikes }: { strikes: Strike[] }) => (
-  <div className='flex items-center space-x-4 justify-center mt-4'>
-    {[0, 1, 2].map((index) => (
-      <div
-        key={index}
-        className={`text-5xl font-bold ${
-          strikes.length > index ? 'text-red-600' : 'text-gray-300'
-        }`}
-      >
-        X
-      </div>
-    ))}
-  </div>
-);
-
-const NextRoundButton = ({ onNextRound }: { onNextRound: () => void }) => (
-  <button
-    className='mt-6 bg-yellow-500 text-blue-900 py-3 px-6 rounded-full text-xl font-bold shadow-lg hover:bg-yellow-400 transition-colors duration-200'
-    onClick={onNextRound}
-  >
-    Next Round
-  </button>
-);
-
-const NewGameButton = ({ onRestartGame }: { onRestartGame: () => void }) => (
-  <button
-    className='mt-4 bg-red-500 text-white py-2 px-4 rounded-full text-sm font-bold shadow-lg hover:bg-red-400 transition-colors duration-200'
-    onClick={onRestartGame}
-  >
-    Restart Game
-  </button>
-);
-
-export default function GameBoard() {
   const {
     initialGenderRevealGame,
     genderRevealGame,
@@ -156,6 +52,39 @@ export default function GameBoard() {
   );
   const params = useSearchParams();
   const isHost = params.get('isHost');
+
+  const { appEvents, removeAppEvent } = useHandleAppEvents({
+    onWhoBuzzedFirst: (teamName: string) => {
+      buzzedInFx?.play();
+      if (teamName || !genderRevealGame?.teams) return;
+      const teamIndex = genderRevealGame.teams.findIndex(
+        (team) => team.name === teamName,
+      );
+      if (teamIndex !== -1) {
+        setTeams(
+          genderRevealGame.teams.map((team, i) => ({
+            ...team,
+            isActive: i === teamIndex,
+          })),
+        );
+      }
+    },
+    onSound: (soundName: 'applause' | 'themeSong') => {
+      if (soundName === 'applause') {
+        applauseFx?.play();
+      } else if (soundName === 'themeSong') {
+        themeSongFx?.play();
+      }
+    },
+  });
+
+  const buzzer = appEvents?.teamName
+    ? {
+        _id: appEvents._id,
+        teamName: appEvents.teamName,
+      }
+    : undefined;
+
   async function setTeams(teams: Team[]) {
     if (!genderRevealGame) return;
     await updateGenderRevealGame({
@@ -228,6 +157,7 @@ export default function GameBoard() {
   }
 
   const handleNextRound = () => {
+    faceOffFx?.play();
     const newGameQuestions = gameQuestions.filter(
       (question) => question.id !== currentQuestion.id,
     );
@@ -239,7 +169,8 @@ export default function GameBoard() {
     setStrikes([]);
   };
 
-  const handleRestartGame = () => {
+  const handleRestartGame = async () => {
+    setLoading(true);
     const initialQuestion =
       questions[Math.floor(Math.random() * questions.length)];
     // reset all state back to original state
@@ -254,18 +185,25 @@ export default function GameBoard() {
     setGameQuestions(questions);
     setTeams(teams.map((team) => ({ ...team, score: 0 })));
     setStrikes([]);
+    setLoading(false);
   };
 
   const handleRevealAnswer = (index: number) => {
     if (!revealedAnswers[index]) {
+      correctFx?.play();
       const newRevealedAnswers = [...revealedAnswers];
       newRevealedAnswers[index] = true;
+      setRevealedAnswers(newRevealedAnswers);
+    } else {
+      const newRevealedAnswers = [...revealedAnswers];
+      newRevealedAnswers[index] = false;
       setRevealedAnswers(newRevealedAnswers);
     }
   };
 
   const handleAddStrike = () => {
     if (strikes.length < 3) {
+      incorrectFx?.play();
       setStrikes([
         ...strikes,
         {
@@ -295,6 +233,7 @@ export default function GameBoard() {
       setShowAddMiniGamePointsButton(false);
     }
   };
+
   async function initializeCountdown() {
     await setIsCountdown(true);
   }
@@ -314,7 +253,8 @@ export default function GameBoard() {
     }, 1000); // Update every second
   };
 
-  const startMiniGame = () => {
+  const startMiniGame = async () => {
+    await removeAppEvent();
     setIsMiniGame(true); // Activate mini-game
     const shuffleInterval = setInterval(() => {
       const randomWord =
@@ -330,7 +270,14 @@ export default function GameBoard() {
     }, 4000); // Shuffle for 6 seconds
   };
 
-  const [hasMounted, setHasMounted] = useState(false);
+  function handleStrikeClick(isClicked: boolean) {
+    if (isClicked) {
+      // remove strike
+      setStrikes(strikes.slice(0, -1));
+    } else {
+      handleAddStrike();
+    }
+  }
 
   useEffect(() => {
     if (genderRevealGame?.isCountdown) {
@@ -364,6 +311,7 @@ export default function GameBoard() {
     strikes,
     teams = initialGenderRevealGame.teams,
   } = genderRevealGame;
+
   const revealedPoints = currentQuestion.answers
     .filter((_, index) => revealedAnswers[index])
     .reduce((sum, answer) => sum + answer.points, 0);
@@ -374,6 +322,11 @@ export default function GameBoard() {
   );
   return (
     <div className='min-h-screen bg-blue-900 text-white p-8 relative'>
+      {loading && (
+        <div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'>
+          <div className='animate-spin rounded-full h-16 w-16 border-t-4 border-black-500 mb-4'></div>
+        </div>
+      )}
       {isCountdown && (
         <div className='absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50'>
           <h1 className='text-5xl text-white'>{secondsLeft}</h1>
@@ -412,7 +365,7 @@ export default function GameBoard() {
               )}
             </div>
             {showAddMiniGamePointsButton && (
-              <div className=' grid grid-cols-3 gap-4'>
+              <div className='grid sm:grid-cols-1 md:grid-cols-3 gap-4'>
                 <MiniGameCard miniGameTitle={currentMiniGameTitle} />
                 <TeamScore
                   team={teams[0]}
@@ -421,7 +374,6 @@ export default function GameBoard() {
                     handleReceivePoints(Math.floor(totalPoints / 2))
                   }
                 />
-
                 <TeamScore
                   team={teams[1]}
                   onSelect={() => handleTeamSelect(1)}
@@ -435,7 +387,7 @@ export default function GameBoard() {
         )}
       </>
       <CurrentQuestion question={currentQuestion} />
-      <div className='grid grid-cols-2 gap-4 mt-8'>
+      <div className='grid sm:grid-cols-1 md:grid-cols-2 gap-4 mt-8'>
         {currentQuestion.answers.map((answer, index) => (
           <AnswerSlot
             key={index}
@@ -448,13 +400,14 @@ export default function GameBoard() {
         ))}
       </div>
 
-      <div className='grid grid-cols-3 gap-8 mt-3'>
+      <div className='grid sm:grid-cols-1 md:grid-cols-3 gap-8 mt-3'>
         <TeamScore
+          isBuzzedFirst={buzzer?.teamName === teams[0].name}
           team={teams[0]}
           onSelect={() => handleTeamSelect(0)}
           onReceivePoints={() => handleReceivePoints()}
         />
-        <div className=' flex justify-between flex-col'>
+        <div className='flex justify-between flex-col'>
           <div className='text-center text-3xl'>
             Total Revealed Points:{' '}
             <span className='font-bold'>{revealedPoints}</span>
@@ -468,7 +421,7 @@ export default function GameBoard() {
             </button>
             <button
               className='bg-gray-500 text-white p-4 rounded-full text-lg font-bold shadow-lg hover:bg-gray-400 transition-colors duration-200'
-              onClick={initializeCountdown} // Start countdown on click
+              onClick={initializeCountdown}
             >
               <FaClock className='text-2xl' />
             </button>
@@ -480,24 +433,25 @@ export default function GameBoard() {
               <FaTimesCircle className='text-2xl' />
             </button>
           </div>
-          <StrikeCounter strikes={strikes} />
+          <StrikeCounter strikes={strikes} onStrikeClick={handleStrikeClick} />
         </div>
         <TeamScore
+          isBuzzedFirst={buzzer?.teamName === teams[1].name}
           team={teams[1]}
           onSelect={() => handleTeamSelect(1)}
           onReceivePoints={() => handleReceivePoints()}
         />
       </div>
-      <div className='absolute bottom-0  right-0'>
+      <div className='absolute bottom-0 right-0'>
         <NextRoundButton onNextRound={handleNextRound} />
       </div>
-      <div className=' absolute top-0  left-0'>
+      <div className='absolute top-0 left-0'>
         <NewGameButton onRestartGame={handleRestartGame} />
       </div>
-      <div className=' absolute top-0  right-0'>
+      <div className='absolute top-0 right-0'>
         <button
           className='bg-blue-500 text-white p-4 rounded-full text-lg font-bold shadow-lg hover:bg-blue-400 transition-colors duration-200'
-          onClick={startMiniGame} // Start Mini Game on click
+          onClick={startMiniGame}
         >
           Mini Game
         </button>
